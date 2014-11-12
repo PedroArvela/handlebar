@@ -1,12 +1,32 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 from subprocess import call
-import argparse
+import sys
 import toml
 
 def action_build(path, build):
-	print("Todo")
+	if args.verbose >= 1:
+		print("Building " + build["name"] + "...")
+	
+	if build["type"] != "source":
+		sys.exit("Nothing to build")
+	
+	if not "work_dir" in build["source"]:
+		work_dir = path
+	else:
+		work_dir = os.path.normpath(os.path.join(path, build["source"]["work_dir"]))
+
+	if not "dest_dir" in build["source"]:
+		dest_dir = os.path.join(path, "build")
+	else:
+		dest_dir = os.path.normpath(os.path.join(path, build["source"]["dest_dir"]))
+	
+	if args.debug:
+		print("Build source: " + work_dir)
+		print("Build destination: " + dest_dir)
+
 
 def action_package(path, build):
 	if args.verbose >= 1:
@@ -18,7 +38,7 @@ def action_package(path, build):
 			print("Build folder: " + build_folder)
 		call(["fpm", "-s", "dir", "-t", "deb", "-n", build["name"], build_folder], cwd=path)
 
-# Parse command line arguments #################################################
+# Parse command line arguments
 parser = argparse.ArgumentParser(description="Build Debian packages from source easily")
                                                                                 
 parser.add_argument("-d", "--debug", action="store_true", help="enable debug mode")
@@ -36,6 +56,7 @@ parser_package.add_argument("build_file", type=argparse.FileType('r', encoding='
 
 args = parser.parse_args()
 
+# Set up project file, path and settings
 build_file = os.path.abspath(args.build_file.name)
 build_file_name = os.path.basename(build_file)
 build_path = os.path.dirname(build_file)
@@ -48,6 +69,7 @@ build = toml.loads(args.build_file.read())
 if args.debug:
 	print(build)
 
+# Choose what to do
 if args.action == "build":
 	action_build(build_path, build)
 elif args.action == "package":
