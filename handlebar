@@ -7,25 +7,51 @@ import sys
 import toml
 
 def action_build(path, build):
-	if args.verbose >= 1:
-		print("Building " + build["name"] + "...")
-	
-	if build["type"] != "source":
-		sys.exit("Nothing to build")
-	
-	if not "work_dir" in build["source"]:
-		work_dir = path
-	else:
-		work_dir = os.path.normpath(os.path.join(path, build["source"]["work_dir"]))
+    if args.verbose >= 1:
+        print("Building " + build["name"] + "...")
+    
+    if build["type"] != "source":
+        sys.exit("Nothing to build")
 
-	if not "dest_dir" in build["source"]:
-		dest_dir = os.path.join(path, "build")
-	else:
-		dest_dir = os.path.normpath(os.path.join(path, build["source"]["dest_dir"]))
+    if not "work_dir" in build["source"]:
+        work_dir = path
+    else:
+        work_dir = os.path.normpath(os.path.join(path, build["source"]["work_dir"]))
+
+    if not "dest_dir" in build["source"]:
+        print("Warning: assuming build destination is in ./build")
+        dest_dir = os.path.join(path, "build")
+    else:
+        dest_dir = os.path.normpath(os.path.join(path, build["source"]["dest_dir"]))
+    
+    if args.debug:
+        print("Build source: " + work_dir)
+        print("Build destination: " + dest_dir)
+    
+    chroot_target = "/var/cache/handlebar/chroots/" + str(os.getpid()) + ".pid"
+
+    if args.verbose >= 1:
+        print("Creating chroot at " + chroot_target + "...")
 	
-	if args.debug:
-		print("Build source: " + work_dir)
-		print("Build destination: " + dest_dir)
+    os.makedirs(chroot_target)
+    # Create temporary folder
+    # Create aufs mount
+
+    # Run systemd-nspawn with binddir
+
+    # Install dependencies
+
+    if args.verbose >= 1:
+        print("Building...")
+    
+    # Run commands sequentially
+
+    if args.verbose >= 1:
+        print("Cleaning up chroot at " + chroot_target + "...")
+    
+    # Unmount aufs
+    # Remove temporary folder
+    os.rmdir(chroot_target)
 
 
 def action_package(path, build):
