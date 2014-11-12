@@ -64,9 +64,10 @@ def action_package(path, build):
 			print("Build folder: " + build_folder)
 		call(["fpm", "-s", "dir", "-t", "deb", "-n", build["name"], build_folder], cwd=path)
 
+
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Build Debian packages from source easily")
-                                                                                
+
 parser.add_argument("-d", "--debug", action="store_true", help="enable debug mode")
 parser.add_argument("-v", "--verbose", action="count", default=0, help="enables verbose output")
 
@@ -83,20 +84,24 @@ parser_package.add_argument("build_file", type=argparse.FileType('r', encoding='
 args = parser.parse_args()
 
 # Set up project file, path and settings
-build_file = os.path.abspath(args.build_file.name)
-build_file_name = os.path.basename(build_file)
-build_path = os.path.dirname(build_file)
+if not hasattr(args, 'action'):
+    sys.exit("Missing command. Run with -h or --help to know available options")
 
-if args.debug:
-	print("Opening " + build_file + "...")
+if args.action == "build" or args.action == "package":
+    build_file = os.path.abspath(args.build_file.name)
+    build_file_name = os.path.basename(build_file)
+    build_path = os.path.dirname(build_file)
 
-build = toml.loads(args.build_file.read())
+    if args.debug:
+        print("Opening " + build_file + "...")
 
-if args.debug:
-	print(build)
+    build = toml.loads(args.build_file.read())
+
+    if args.debug:
+        print(build)
 
 # Choose what to do
 if args.action == "build":
-	action_build(build_path, build)
+    action_build(build_path, build)
 elif args.action == "package":
-	action_package(build_path, build)
+    action_package(build_path, build)
