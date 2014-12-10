@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+from subprocess import call
+import sys
+import toml
+
+def action_deps(path, build):
+    if args.verbose >= 1:
+        print("Installing build dependencies for " + build["name"] + "...")
+    
+    command = ["aptitude", "-y", "-q=2", "install"]
+
+    command += build["source"]["depends"]
+
+    env = { "PATH": os.environ["PATH"],
+            "DEBIAN_FRONTEND": "noninteractive" }
+
+    if args.debug:
+        print("Running command " + " ".join(command))
+        print("Environment " + " ".join(env))
+
+    if args.verbose >= 1:
+        print("Installing dependencies...")
+
+    result = call(command, cwd=path, env=env)
+
+    if result != 0:
+        sys.exit("Handlebar error: Failed to install dependencies")
+
+def action_build(path, build):
+    if args.verbose >= 1:
+        print("Building " + build["name"] + "...")
+    
+    if build["type"] != "source":
+        sys.exit("Nothing to build")
+
+    if not "work_dir" in build["source"]:
+        work_dir = path
+    else:
+        work_dir = os.path.normpath(os.path.join(path, build["source"]["work_dir"]))
+
+    if not "dest_dir" in build["source"]:
+        print("Warning: assuming build destination is in ./build")
+        dest_dir = os.path.join(path, "build")
+    else:
+        dest_dir = os.path.normpath(os.path.join(path, build["source"]["dest_dir"]))
+    
+    if args.debug:
+        print("Build source: " + work_dir)
+        print("Build destination: " + dest_dir)
+    
+    if args.verbose >= 1:
+        print("Building...")
+    
+    os.rmdir(chroot_target)
+
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Helper tool to build packages in chroots for handlebar")
+
+parser.add_argument("-d", "--debug", action="store_true", help="enable debug mode")
+parser.add_argument("-v", "--verbose", action="count", default=0, help="enables verbose output")
+
+subparser = parser.add_subparsers(title="Sub-commands")
+
+parser_deps = subparser.add_parser("build-deps", help="Install the build dependencies")
+parser_deps.set_defaults(action="deps")
+parser_deps.add_argument("build_file", type=argparse.FileType('r'), help="The path to the file with the build instructions")
+
+parser_build = subparser.add_parser("build", help="Build the source of a given program")
+parser_build.set_defaults(action="build")
+parser_build.add_argument("build_file", type=argparse.FileType('r'), help="The path to the file with the build instructions")
+
+args = parser.parse_args()
+
+# Set up project file, path and settings
+if not hasattr(args, 'action'):
+    sys.exit("Missing command. Run with -h or --help to know available options")
+
+if args.action == "deps" or args.action == "build":
+    build_file = os.path.abspath(args.build_file.name)
+    build_file_name = os.path.basename(build_file)
+    build_path = os.path.dirname(build_file)
+
+    if args.debug:
+        print("Opening " + build_file + "...")
+
+    build = toml.loads(args.build_file.read())
+
+    if args.debug:
+        print(build)
+
+# Choose what to do
+if args.action == "deps":
+    action_deps(build_path, build)
+elif args.action == "build":
+    action_build(build_path, build)

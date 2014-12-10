@@ -2,7 +2,8 @@
 
 import argparse
 import os
-from subprocess import call
+import platform
+from subprocess import call, check_output
 import sys
 import toml
 
@@ -28,14 +29,18 @@ def action_build(path, build):
         print("Build source: " + work_dir)
         print("Build destination: " + dest_dir)
     
-    chroot_target = "/var/cache/handlebar/chroots/" + str(os.getpid()) + ".pid"
+    chroot_dir = "/var/cache/handlebar/chroots/" + str(os.getpid()) + ".pid"
 
     if args.verbose >= 1:
-        print("Creating chroot at " + chroot_target + "...")
+        print("Creating chroot at " + chroot_dir + "...")
 	
-    os.makedirs(chroot_target)
-    # Create temporary folder
+    os.makedirs(chroot_dir)
+
     # Create aufs mount
+    # mount_string = chroot_dir + "=rw:" + base_img + "=ro"
+
+    #result = call(["mount", "-t", "aufs", "-o", "dirs=" + mount_string, "none", chroot_dir], cwd=work_dir)
+    # Missing creation of the base_img string
 
     # Run systemd-nspawn with binddir
 
@@ -71,6 +76,9 @@ parser = argparse.ArgumentParser(description="Build Debian packages from source 
 parser.add_argument("-d", "--debug", action="store_true", help="enable debug mode")
 parser.add_argument("-v", "--verbose", action="count", default=0, help="enables verbose output")
 
+parser.add_argument("-s", "--suite", help="define the suite to use (defaults to the running system)")
+parser.add_argument("-a", "--arch", help="define the architecture to use (defaults to the running system")
+
 subparser = parser.add_subparsers(title="Sub-commands")
 
 parser_build = subparser.add_parser("build", help="Build the source of a given program")
@@ -86,6 +94,26 @@ args = parser.parse_args()
 # Set up project file, path and settings
 if not hasattr(args, 'action'):
     sys.exit("Missing command. Run with -h or --help to know available options")
+
+if args.suite:
+    suite = args.suite
+else:
+    suite = check_output(["lsb_release", "-s", "-c"]).rstrip().decode(sys.stdout.encoding)
+
+if args.arch:
+    arch = args.arch
+else:
+    plat_arch = platform.architecture()
+    if plat_arch[0] == "64bit":
+        arch = "amd64"
+    elif plat_arch[0] == "32bit":
+        arch = "i386"
+    else:
+        arch = plat_arch[0]
+
+if args.debug:
+    print("Using suite:\t" + suite)
+    print("Using architecture:\t" + arch)
 
 if args.action == "build" or args.action == "package":
     build_file = os.path.abspath(args.build_file.name)
