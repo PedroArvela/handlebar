@@ -3,11 +3,13 @@
 import argparse
 import os
 import platform
+import shlex
+from shutil import rmtree
 from subprocess import call, check_output
 import sys
 import toml
 
-def action_build(path, build):
+def action_build(path, build, suite, arch):
     if args.verbose >= 1:
         print("Building " + build["name"] + "...")
     
@@ -29,7 +31,8 @@ def action_build(path, build):
         print("Build source: " + work_dir)
         print("Build destination: " + dest_dir)
     
-    chroot_dir = "/var/cache/handlebar/chroots/" + str(os.getpid()) + ".pid"
+    chroot_dir = "/var/cache/handlebar/chroots/" + build["name"] + "-" + suite + "-" + arch
+    base_img   = "/var/cache/handlebar/images/" + suite + "-" + arch
 
     if args.verbose >= 1:
         print("Creating chroot at " + chroot_dir + "...")
@@ -37,12 +40,25 @@ def action_build(path, build):
     os.makedirs(chroot_dir)
 
     # Create aufs mount
-    # mount_string = chroot_dir + "=rw:" + base_img + "=ro"
+    mount_string = chroot_dir + "=rw:" + base_img + "=ro"
+    mount_command = shlex.split("mount -t aufs -o dirs=" + mount_string + " none " + chroot_dir)
 
-    #result = call(["mount", "-t", "aufs", "-o", "dirs=" + mount_string, "none", chroot_dir], cwd=work_dir)
+    if args.debug:
+        print("Calling " + " ".join(mount_command))
+
+    result = call(mount_command, cwd=work_dir)
+    
+    if args.debug:
+        print("Call output: " + str(result))
     # Missing creation of the base_img string
 
     # Run systemd-nspawn with binddir
+    bind_source_dir = "/var/cache/handlebar/binds/source"
+    bind_build_dir  = "/var/cache/handlebar/binds/build"
+    spawn_command = shlex.split("systemd-nspawn -D " + chroot_dir + " --bind " + work_dir + ":" + bind_source_dir + " --bind " + dest_dir + ":" + bind_build_dir)
+
+    if args.debug:
+        print("Calling " + " ".join(spawn_command))
 
     # Install dependencies
 
@@ -52,11 +68,13 @@ def action_build(path, build):
     # Run commands sequentially
 
     if args.verbose >= 1:
-        print("Cleaning up chroot at " + chroot_target + "...")
+        print("Cleaning up chroot at " + chroot_dir + "...")
     
     # Unmount aufs
+    call(["umount", chroot_dir])
+
     # Remove temporary folder
-    os.rmdir(chroot_target)
+    rmtree(chroot_dir)
 
 
 def action_package(path, build):
@@ -98,7 +116,7 @@ if not hasattr(args, 'action'):
 if args.suite:
     suite = args.suite
 else:
-    suite = check_output(["lsb_release", "-s", "-c"]).rstrip().decode(sys.stdout.encoding)
+    suite = check_output(["lsb_release", "-s", "-c"]).decode(sys.stdout.encoding).rstrip()
 
 if args.arch:
     arch = args.arch
@@ -130,6 +148,6 @@ if args.action == "build" or args.action == "package":
 
 # Choose what to do
 if args.action == "build":
-    action_build(build_path, build)
+    action_build(build_path, build, suite, arch)
 elif args.action == "package":
     action_package(build_path, build)
