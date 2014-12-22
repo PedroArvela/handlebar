@@ -61,7 +61,7 @@ def action_build(path, build):
 parser = argparse.ArgumentParser(description="Helper tool to build packages in chroots for handlebar")
 
 parser.add_argument("-d", "--debug", action="store_true", help="enable debug mode")
-parser.add_argument("-v", "--verbose", action="count", default=0, help="enables verbose output")
+parser.add_argument("-v", "--verbose", action="count", default=0, help="enable verbose output")
 
 subparser = parser.add_subparsers(title="Sub-commands")
 
