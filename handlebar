@@ -52,15 +52,28 @@ def action_build(path, build, suite, arch):
         print("Call output: " + str(result))
     # Missing creation of the base_img string
 
+    bind_build_text = toml.dumps(build)
+
+    # TODO: modify the necessary variables to run in a chroot
+    os.makedirs(chroot_dir + '/var/cache/handlebar/binds/')
+    with open(chroot_dir + '/var/cache/handlebar/binds/build.toml', 'w') as bind_file:
+        bind_file.write(bind_build_text)
+
     # Run systemd-nspawn with binddir
     bind_source_dir = "/var/cache/handlebar/binds/source"
     bind_build_dir  = "/var/cache/handlebar/binds/build"
-    spawn_command = shlex.split("systemd-nspawn -D " + chroot_dir + " --bind " + work_dir + ":" + bind_source_dir + " --bind " + dest_dir + ":" + bind_build_dir)
-
-    if args.debug:
-        print("Calling " + " ".join(spawn_command))
+    spawn_string = "systemd-nspawn -D " + chroot_dir + " --bind " + work_dir + ":" + bind_source_dir + " --bind " + dest_dir + ":" + bind_build_dir
 
     # Install dependencies
+    deps_command = shlex.split(spawn_string + " /usr/local/bin/handlebar-helper build-deps /var/cache/handlebar/binds/build.toml")
+
+    if args.verbose >= 1:
+        print("Installing dependencies...")
+
+    if args.debug:
+        print(" ".join(deps_command))
+
+    call(deps_command, cwd=work_dir)
 
     if args.verbose >= 1:
         print("Building...")
