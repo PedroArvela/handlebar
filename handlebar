@@ -9,60 +9,64 @@ from subprocess import call, check_output
 import sys
 import toml
 
-def action_build(path, build, suite, arch):
+def action_build(path, build, suite, arch, keep_chroot=False):
     if args.verbose >= 1:
         print("Building " + build["name"] + "...")
     
     if build["type"] != "source":
         sys.exit("Nothing to build")
 
-    if not "work_dir" in build["source"]:
-        work_dir = path
+    # Define where is the source and where will be placed the compiled files
+    if not "src_dir" in build["source"]:
+        src_dir = os.path.normpath(os.path.join(path, "src"))
     else:
-        work_dir = os.path.normpath(os.path.join(path, build["source"]["work_dir"]))
+        src_dir = os.path.normpath(os.path.join(path, build["source"]["src_dir"]))
 
-    if not "dest_dir" in build["source"]:
-        print("Warning: assuming build destination is in ./build")
-        dest_dir = os.path.join(path, "build")
-    else:
-        dest_dir = os.path.normpath(os.path.join(path, build["source"]["dest_dir"]))
+    dest_dir = os.path.join(path, "package-" + suite + "-" + arch)
+    if not os.path.isdir(dest_dir):
+        os.makedirs(dest_dir)
     
     if args.debug:
-        print("Build source: " + work_dir)
+        print("Build source: " + src_dir)
         print("Build destination: " + dest_dir)
-    
+   
     chroot_dir = "/var/cache/handlebar/chroots/" + build["name"] + "-" + suite + "-" + arch
     base_img   = "/var/cache/handlebar/images/" + suite + "-" + arch
 
     if args.verbose >= 1:
-        print("Creating chroot at " + chroot_dir + "...")
-	
-    os.makedirs(chroot_dir)
+        print("Creating chroot at " + chroot_dir)
 
-    # Create aufs mount
-    mount_string = chroot_dir + "=rw:" + base_img + "=ro"
-    mount_command = shlex.split("mount -t aufs -o dirs=" + mount_string + " none " + chroot_dir)
+    if not os.path.isdir(chroot_dir):
+        os.makedirs(chroot_dir)
 
-    if args.debug:
-        print("Calling " + " ".join(mount_command))
+        # Create aufs mount
+        mount_string = chroot_dir + "=rw:" + base_img + "=ro"
+        mount_command = shlex.split("mount -t aufs -o dirs=" + mount_string + " none " + chroot_dir)
 
-    result = call(mount_command, cwd=work_dir)
+        if args.debug:
+            print("Calling " + " ".join(mount_command))
+
+        result = call(mount_command, cwd=src_dir)
     
-    if args.debug:
-        print("Call output: " + str(result))
-    # Missing creation of the base_img string
+        if args.debug:
+            print("Call output: " + str(result))
 
+        if result != 0:
+            sys.exit("Mount of the filesystem failed")
+
+    # Copy the handlebar file to the chroot
     bind_build_text = toml.dumps(build)
 
-    # TODO: modify the necessary variables to run in a chroot
-    os.makedirs(chroot_dir + '/var/cache/handlebar/binds/')
+    if not os.path.isdir(chroot_dir + '/var/cache/handlebar/binds/'):
+        os.makedirs(chroot_dir + '/var/cache/handlebar/binds/')
+
     with open(chroot_dir + '/var/cache/handlebar/binds/build.toml', 'w') as bind_file:
         bind_file.write(bind_build_text)
 
-    # Run systemd-nspawn with binddir
+    # Prepare systemd-nspawn with binddir command
     bind_source_dir = "/var/cache/handlebar/binds/source"
     bind_build_dir  = "/var/cache/handlebar/binds/build"
-    spawn_string = "systemd-nspawn -D " + chroot_dir + " --bind " + work_dir + ":" + bind_source_dir + " --bind " + dest_dir + ":" + bind_build_dir
+    spawn_string = "systemd-nspawn -D " + chroot_dir + " --bind " + src_dir + ":" + bind_source_dir + " --bind " + dest_dir + ":" + bind_build_dir
 
     # Install dependencies
     deps_command = shlex.split(spawn_string + " /usr/local/bin/handlebar-helper build-deps /var/cache/handlebar/binds/build.toml")
@@ -73,32 +77,77 @@ def action_build(path, build, suite, arch):
     if args.debug:
         print(" ".join(deps_command))
 
-    call(deps_command, cwd=work_dir)
+    result = call(deps_command, cwd=src_dir)
+
+    if result != 0:
+        sys.exit("Dependency instalation failed.")
+
+    # Run commands sequentially
+    if args.verbose >= 1:
+        verbose_arg = "-v"
+    else:
+        verbose_arg = ""
+
+    if args.debug >= 1:
+        debug_arg = "-d"
+    else:
+        debug_arg = ""
+
+    build_command = shlex.split(spawn_string + " /usr/local/bin/handlebar-helper " + verbose_arg + " " + debug_arg + " build /var/cache/handlebar/binds/build.toml")
 
     if args.verbose >= 1:
         print("Building...")
-    
-    # Run commands sequentially
 
+    if args.debug:
+        print(" ".join(build_command))
+
+    result = call(build_command, cwd=src_dir)
+
+    if result != 0:
+        sys.exit("Build failed.")
+
+    if not keep_chroot:
+        if args.verbose >= 1:
+            print("Cleaning up chroot at " + chroot_dir + "...")
+        
+        # Unmount aufs
+        call(["umount", chroot_dir])
+
+        # Remove temporary folder
+        rmtree(chroot_dir)
+
+
+def action_package(path, build, suite, arch):
     if args.verbose >= 1:
-        print("Cleaning up chroot at " + chroot_dir + "...")
+            print("Packaging " + build["name"] + "...")
     
-    # Unmount aufs
-    call(["umount", chroot_dir])
+    if build["type"] == "dir":
+        build_folder = os.path.normpath(os.path.join(path, build["directory"]["path"]))
+        if args.debug:
+            print("Build folder: " + build_folder)
 
-    # Remove temporary folder
-    rmtree(chroot_dir)
+    if build["type"] == "source":
+        build_folder = os.path.join(path, "package-" + suite + "-" + arch)
 
+    call_args = [   "fpm", "-s", "dir", "-t", "deb", "-C", build_folder,
+                    "-n", build["package"]["name"],
+                    "-v", build["version"],
+                    "-a", arch,
+                    "--description", build["package"]["description"], ]
 
-def action_package(path, build):
-	if args.verbose >= 1:
-		print("Packaging " + build["name"] + "...")
-	
-	if build["type"] == "dir":
-		build_folder = os.path.normpath(os.path.join(path, build["directory"]["path"]))
-		if args.debug:
-			print("Build folder: " + build_folder)
-		call(["fpm", "-s", "dir", "-t", "deb", "-n", build["name"], build_folder], cwd=path)
+    if "depends" in build["package"]:
+        for depend in build["package"]["depends"]:
+            call_args.append("-d")
+            call_args.append(depend)
+
+    if "config_files" in build["package"]:
+        for conf in build["package"]["config_files"]:
+            call_args.append("--config-files")
+            call_args.append(conf)
+
+    call_args.extend(build["package"]["files"])
+
+    call(call_args, cwd=path)
 
 
 # Parse command line arguments
@@ -115,12 +164,16 @@ subparser = parser.add_subparsers(title="Sub-commands")
 parser_build = subparser.add_parser("build", help="Build the source of a given program")
 parser_build.set_defaults(action="build")
 parser_build.add_argument("build_file", type=argparse.FileType('r', encoding='UTF-8'), help="The path to the file with the build instructions")
+parser_build.add_argument("-k", "--keep-chroot", action="store_false", help="do not delete the filesystem image after compiling, usefull for iterative development")
 
 parser_package = subparser.add_parser("package", help="Package a given program")
 parser_package.set_defaults(action="package")
 parser_package.add_argument("build_file", type=argparse.FileType('r', encoding='UTF-8'), help="The path to the file with the build instructions")
 
 args = parser.parse_args()
+
+if args.debug:
+    print(args)
 
 # Set up project file, path and settings
 if not hasattr(args, 'action'):
@@ -136,13 +189,13 @@ if args.arch:
 else:
     plat_arch = platform.architecture()
     if plat_arch[0] == "64bit":
-        arch = "amd64"
+        arch = "x86_64"
     elif plat_arch[0] == "32bit":
         arch = "i386"
     else:
         arch = plat_arch[0]
 
-if args.debug:
+if args.verbose >= 1:
     print("Using suite:\t" + suite)
     print("Using architecture:\t" + arch)
 
@@ -161,6 +214,6 @@ if args.action == "build" or args.action == "package":
 
 # Choose what to do
 if args.action == "build":
-    action_build(build_path, build, suite, arch)
+    action_build(build_path, build, suite, arch, keep_chroot=args.keep_chroot)
 elif args.action == "package":
-    action_package(build_path, build)
+    action_package(build_path, build, suite, arch)

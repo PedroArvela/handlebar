@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shlex
 from subprocess import call
 import sys
 import toml
@@ -36,27 +37,26 @@ def action_build(path, build):
     if build["type"] != "source":
         sys.exit("Nothing to build")
 
-    if not "work_dir" in build["source"]:
-        work_dir = path
-    else:
-        work_dir = os.path.normpath(os.path.join(path, build["source"]["work_dir"]))
+    src_dir  = os.path.normpath("/var/cache/handlebar/binds/source")
+    dest_dir = os.path.normpath("/var/cache/handlebar/binds/build")
 
-    if not "dest_dir" in build["source"]:
-        print("Warning: assuming build destination is in ./build")
-        dest_dir = os.path.join(path, "build")
-    else:
-        dest_dir = os.path.normpath(os.path.join(path, build["source"]["dest_dir"]))
-    
     if args.debug:
-        print("Build source: " + work_dir)
+        print("Build source: " + src_dir)
         print("Build destination: " + dest_dir)
     
     if args.verbose >= 1:
         print("Building...")
+
+    for command in build["source"]["build"]:
+        if args.verbose >= 1:
+            print(command)
+        result = call(command, shell=True, cwd=src_dir)
+        if result != 0:
+            sys.exit("Call to command " + command + " failed.")
+
+    if args.verbose >= 1:
+        print("Build finished")
     
-    os.rmdir(chroot_target)
-
-
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Helper tool to build packages in chroots for handlebar")
 
