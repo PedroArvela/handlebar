@@ -132,6 +132,7 @@ def action_package(path, build, suite, arch):
     call_args = [   "fpm", "-s", "dir", "-t", "deb", "-C", build_folder,
                     "-n", build["package"]["name"],
                     "-v", build["version"],
+                    "-m", build["maintainer"],
                     "-a", arch,
                     "--description", build["package"]["description"], ]
 
