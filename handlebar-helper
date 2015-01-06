@@ -56,7 +56,22 @@ def action_build(path, build):
 
     if args.verbose >= 1:
         print("Build finished")
-    
+
+def action_clean(path, build):
+    if build["type"] != "source":
+        sys.exit("Nothing to clean")
+
+    src_dir  = os.path.normpath("/var/cache/handlebar/binds/source")
+    dest_dir = os.path.normpath("/var/cache/handlebar/binds/build")
+
+    for command in build["source"]["clean"]:
+        if args.verbose >= 1:
+            print(command)
+        result = call(command, shell=True, cwd=src_dir)
+        if result != 0:
+            sys.exit("Call to command " + command + " failed.")
+
+
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Helper tool to build packages in chroots for handlebar")
 
@@ -73,27 +88,32 @@ parser_build = subparser.add_parser("build", help="Build the source of a given p
 parser_build.set_defaults(action="build")
 parser_build.add_argument("build_file", type=argparse.FileType('r'), help="The path to the file with the build instructions")
 
+parser_build = subparser.add_parser("clean", help="Clean the source tree after compilation")
+parser_build.set_defaults(action="clean")
+parser_build.add_argument("build_file", type=argparse.FileType('r'), help="The path to the file with the clean instructions")
+
 args = parser.parse_args()
 
 # Set up project file, path and settings
 if not hasattr(args, 'action'):
     sys.exit("Missing command. Run with -h or --help to know available options")
 
-if args.action == "deps" or args.action == "build":
-    build_file = os.path.abspath(args.build_file.name)
-    build_file_name = os.path.basename(build_file)
-    build_path = os.path.dirname(build_file)
+build_file = os.path.abspath(args.build_file.name)
+build_file_name = os.path.basename(build_file)
+build_path = os.path.dirname(build_file)
 
-    if args.debug:
-        print("Opening " + build_file + "...")
+if args.debug:
+    print("Opening " + build_file + "...")
 
-    build = toml.loads(args.build_file.read())
+build = toml.loads(args.build_file.read())
 
-    if args.debug:
-        print(build)
+if args.debug:
+    print(build)
 
 # Choose what to do
 if args.action == "deps":
     action_deps(build_path, build)
 elif args.action == "build":
     action_build(build_path, build)
+elif args.action == "clean":
+    action_clean(build_path, build)
