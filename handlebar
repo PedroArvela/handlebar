@@ -119,8 +119,8 @@ def action_build(path, build, suite, arch, keep_chroot=False):
 
 def action_package(path, build, suite, arch):
     if args.verbose >= 1:
-            print("Packaging " + build["name"] + "...")
-    
+        print("Packaging " + build["name"] + "...")
+
     if build["type"] == "dir":
         build_folder = os.path.normpath(os.path.join(path, build["directory"]["path"]))
         if args.debug:
@@ -135,6 +135,9 @@ def action_package(path, build, suite, arch):
                     "-m", build["maintainer"],
                     "-a", arch,
                     "--description", build["package"]["description"], ]
+   
+    if args.verbose >= 1:
+        call_args.append("--verbose")
 
     if "depends" in build["package"]:
         for depend in build["package"]["depends"]:
@@ -147,6 +150,9 @@ def action_package(path, build, suite, arch):
             call_args.append(conf)
 
     call_args.extend(build["package"]["files"])
+
+    if args.debug:
+        print(" ".join(call_args))
 
     call(call_args, cwd=path)
 
@@ -230,7 +236,7 @@ if args.arch:
 else:
     plat_arch = platform.architecture()
     if plat_arch[0] == "64bit":
-        arch = "x86_64"
+        arch = "amd64"
     elif plat_arch[0] == "32bit":
         arch = "i386"
     else:
