@@ -123,14 +123,22 @@ def action_package(path, build, suite, arch):
 
     if build["type"] == "dir":
         build_folder = os.path.normpath(os.path.join(path, build["directory"]["path"]))
-        if args.debug:
-            print("Build folder: " + build_folder)
-
-    if build["type"] == "source":
+    elif build["type"] == "source":
         build_folder = os.path.join(path, "package-" + suite + "-" + arch)
+    else:
+        build_folder = None
 
-    call_args = [   "fpm", "-s", "dir", "-t", "deb", "-C", build_folder,
-                    "-n", build["package"]["name"],
+    if args.debug and build_folder:
+        print("Build folder: " + build_folder)
+
+    call_args = [   "fpm", "-t", "deb"]
+    
+    if build_folder is not None:
+        call_args += [ "-s", "dir", "-C", build_folder ]
+    else:
+        call_args += [ "-s", "empty" ]
+
+    call_args += [  "-n", build["package"]["name"],
                     "-v", build["version"],
                     "-m", build["maintainer"],
                     "-a", arch,
@@ -149,7 +157,8 @@ def action_package(path, build, suite, arch):
             call_args.append("--config-files")
             call_args.append(conf)
 
-    call_args.extend(build["package"]["files"])
+    if "files" in build["package"]:
+        call_args.extend(build["package"]["files"])
 
     if args.debug:
         print(" ".join(call_args))
