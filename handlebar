@@ -216,7 +216,7 @@ subparser = parser.add_subparsers(title="Sub-commands")
 parser_build = subparser.add_parser("build", help="Build the source of a given program")
 parser_build.set_defaults(action="build")
 parser_build.add_argument("build_file", type=argparse.FileType('r', encoding='UTF-8'), help="The path to the file with the build instructions")
-parser_build.add_argument("-k", "--keep-chroot", action="store_false", help="do not delete the filesystem image after compiling, usefull for iterative development")
+parser_build.add_argument("-k", "--keep-chroot", action="store_true", help="do not delete the filesystem image after compiling, usefull for iterative development")
 
 parser_package = subparser.add_parser("package", help="package a given program")
 parser_package.set_defaults(action="package")
