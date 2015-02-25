@@ -152,6 +152,11 @@ def action_package(path, build, suite, arch):
             call_args.append("-d")
             call_args.append(depend)
 
+    if "provides" in build["package"]:
+        for provide in build["package"]["provides"]:
+            call_args.append("--provides")
+            call_args.append(provide)
+
     if "config_files" in build["package"]:
         for conf in build["package"]["config_files"]:
             call_args.append("--config-files")
