@@ -1,7 +1,7 @@
 handlebar
 =========
 
-Build Debian packages from source easily using [fpm](https://github.com/jordansissel/fpm).
+Debian build system using containers and copy on write. Compiled executables are then packaged using [fpm](https://github.com/jordansissel/fpm).
 
 This project is a proof-of-concept which needs to be refactored.
 

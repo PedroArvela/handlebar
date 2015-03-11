@@ -9,15 +9,16 @@ from subprocess import call, check_output
 import sys
 import toml
 
+
 def action_build(path, build, suite, arch, keep_chroot=False):
     if args.verbose >= 1:
         print("Building " + build["name"] + "...")
-    
+
     if build["type"] != "source":
         sys.exit("Nothing to build")
 
     # Define where is the source and where will be placed the compiled files
-    if not "src_dir" in build["source"]:
+    if "src_dir" not in build["source"]:
         src_dir = os.path.normpath(os.path.join(path, "src"))
     else:
         src_dir = os.path.normpath(os.path.join(path, build["source"]["src_dir"]))
@@ -25,13 +26,13 @@ def action_build(path, build, suite, arch, keep_chroot=False):
     dest_dir = os.path.join(path, "package-" + suite + "-" + arch)
     if not os.path.isdir(dest_dir):
         os.makedirs(dest_dir)
-    
+
     if args.debug:
         print("Build source: " + src_dir)
         print("Build destination: " + dest_dir)
-   
+
     chroot_dir = "/var/cache/handlebar/chroots/" + build["name"] + "-" + suite + "-" + arch
-    base_img   = "/var/cache/handlebar/images/" + suite + "-" + arch
+    base_img = "/var/cache/handlebar/images/" + suite + "-" + arch
 
     if args.verbose >= 1:
         print("Creating chroot at " + chroot_dir)
@@ -47,7 +48,7 @@ def action_build(path, build, suite, arch, keep_chroot=False):
             print("Calling " + " ".join(mount_command))
 
         result = call(mount_command, cwd=src_dir)
-    
+
         if args.debug:
             print("Call output: " + str(result))
 
@@ -65,11 +66,13 @@ def action_build(path, build, suite, arch, keep_chroot=False):
 
     # Prepare systemd-nspawn with binddir command
     bind_source_dir = "/var/cache/handlebar/binds/source"
-    bind_build_dir  = "/var/cache/handlebar/binds/build"
-    spawn_string = "systemd-nspawn -D " + chroot_dir + " --bind " + src_dir + ":" + bind_source_dir + " --bind " + dest_dir + ":" + bind_build_dir
+    bind_build_dir = "/var/cache/handlebar/binds/build"
+    spawn_string = "systemd-nspawn -D {0} --bind {1}:{2} --bind {3}:{4}".format(chroot_dir, src_dir, bind_source_dir,
+                                                                                dest_dir, bind_build_dir)
 
     # Install dependencies
-    deps_command = shlex.split(spawn_string + " /usr/local/bin/handlebar-helper build-deps /var/cache/handlebar/binds/build.toml")
+    deps_command = shlex.split(
+        spawn_string + " /usr/local/bin/handlebar-helper build-deps /var/cache/handlebar/binds/build.toml")
 
     if args.verbose >= 1:
         print("Installing dependencies...")
@@ -93,7 +96,9 @@ def action_build(path, build, suite, arch, keep_chroot=False):
     else:
         debug_arg = ""
 
-    build_command = shlex.split(spawn_string + " /usr/local/bin/handlebar-helper " + verbose_arg + " " + debug_arg + " build /var/cache/handlebar/binds/build.toml")
+    build_command = shlex.split(
+        spawn_string + ' /usr/local/bin/handlebar-helper ' + verbose_arg + " " + debug_arg +
+        ' build /var/cache/handlebar/binds/build.toml')
 
     if args.verbose >= 1:
         print("Building...")
@@ -109,7 +114,7 @@ def action_build(path, build, suite, arch, keep_chroot=False):
     if not keep_chroot:
         if args.verbose >= 1:
             print("Cleaning up chroot at " + chroot_dir + "...")
-        
+
         # Unmount aufs
         call(["umount", chroot_dir])
 
@@ -131,19 +136,19 @@ def action_package(path, build, suite, arch):
     if args.debug and build_folder:
         print("Build folder: " + build_folder)
 
-    call_args = [   "fpm", "-t", "deb"]
-    
-    if build_folder is not None:
-        call_args += [ "-s", "dir", "-C", build_folder ]
-    else:
-        call_args += [ "-s", "empty" ]
+    call_args = ["fpm", "-t", "deb"]
 
-    call_args += [  "-n", build["package"]["name"],
-                    "-v", build["version"],
-                    "-m", build["maintainer"],
-                    "-a", arch,
-                    "--description", build["package"]["description"], ]
-   
+    if build_folder is not None:
+        call_args += ["-s", "dir", "-C", build_folder]
+    else:
+        call_args += ["-s", "empty"]
+
+    call_args += ["-n", build["package"]["name"],
+                  "-v", build["version"],
+                  "-m", build["maintainer"],
+                  "-a", arch,
+                  "--description", build["package"]["description"], ]
+
     if args.verbose >= 1:
         call_args.append("--verbose")
 
@@ -170,6 +175,7 @@ def action_package(path, build, suite, arch):
 
     call(call_args, cwd=path)
 
+
 def action_clean(path, build, suite, arch):
     if args.verbose >= 1:
         print("Cleaning up compilation process")
@@ -192,10 +198,12 @@ def action_clean(path, build, suite, arch):
 
     # Prepare systemd-nspawn with binddir command
     bind_source_dir = "/var/cache/handlebar/binds/source"
-    bind_build_dir  = "/var/cache/handlebar/binds/build"
-    spawn_string = "systemd-nspawn -D " + chroot_dir + " --bind " + src_dir + ":" + bind_source_dir + " --bind " + dest_dir + ":" + bind_build_dir
+    bind_build_dir = "/var/cache/handlebar/binds/build"
+    spawn_string = "systemd-nspawn -D {0} --bind {1}:{2} --bind {3}:{4}".format(chroot_dir, src_dir, bind_source_dir,
+                                                                                dest_dir, bind_build_dir)
 
-    clean_command = shlex.split(spawn_string + " /usr/local/bin/handlebar-helper clean /var/cache/handlebar/binds/build.toml")
+    clean_command = shlex.split(
+        spawn_string + " /usr/local/bin/handlebar-helper clean /var/cache/handlebar/binds/build.toml")
 
     result = call(clean_command, cwd=path)
 
@@ -205,7 +213,6 @@ def action_clean(path, build, suite, arch):
     call(["umount", chroot_dir])
     rmtree(chroot_dir)
 
-    
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Build Debian packages from source easily")
@@ -220,16 +227,20 @@ subparser = parser.add_subparsers(title="Sub-commands")
 
 parser_build = subparser.add_parser("build", help="Build the source of a given program")
 parser_build.set_defaults(action="build")
-parser_build.add_argument("build_file", type=argparse.FileType('r', encoding='UTF-8'), help="The path to the file with the build instructions")
-parser_build.add_argument("-k", "--keep-chroot", action="store_true", help="do not delete the filesystem image after compiling, usefull for iterative development")
+parser_build.add_argument("build_file", type=argparse.FileType('r', encoding='UTF-8'),
+                          help="The path to the file with the build instructions")
+parser_build.add_argument("-k", "--keep-chroot", action="store_true",
+                          help="do not delete the filesystem image after compiling, useful for iterative development")
 
 parser_package = subparser.add_parser("package", help="package a given program")
 parser_package.set_defaults(action="package")
-parser_package.add_argument("build_file", type=argparse.FileType('r', encoding='utf-8'), help="the path to the file with the build instructions")
+parser_package.add_argument("build_file", type=argparse.FileType('r', encoding='utf-8'),
+                            help="the path to the file with the build instructions")
 
 parser_package = subparser.add_parser("clean", help="clean the source folder after compilation")
 parser_package.set_defaults(action="clean")
-parser_package.add_argument("build_file", type=argparse.FileType('r', encoding='utf-8'), help="the path to the file with the build instructions")
+parser_package.add_argument("build_file", type=argparse.FileType('r', encoding='utf-8'),
+                            help="the path to the file with the build instructions")
 
 args = parser.parse_args()
 
