@@ -10,5 +10,5 @@ setup(
     license="MIT",
 
     packages=find_packages(),
-    scripts=['handlebar'], requires=['toml']
+    scripts=['handlebar'], requires=['toml.py']
 )
