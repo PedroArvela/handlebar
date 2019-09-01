@@ -1,6 +1,10 @@
 handlebar
 =========
 
+### This project is unmaintained
+
+## Description
+
 Debian build system using containers and copy on write. Compiled executables
 are then packaged using [fpm](https://github.com/jordansissel/fpm).
 
